@@ -120,23 +120,16 @@ class XFreeScraperController {
       if (!Array.isArray(data) || data.length === 0) {
         console.log("API search returned empty, switching to DB...");
 
-        // Fetch random data from DB if no API data
-        const randomVideosFromDB = await Video.aggregate([
-          { $match: { title: { $regex: query, $options: "i" } } },
-          { $sample: { size: count } }, // Random selection of videos
-          { $skip: skip }, // Pagination (skip)
-          { $limit: count }, // Pagination (limit)
-        ]).lean(); // Use lean() to get plain JavaScript objects
+        // Use .find() instead of aggregate to search the database
+        const videosFromDB = await Video.find({
+          title: { $regex: query, $options: "i" }, // Case-insensitive search
+        })
+          .skip(skip) // Pagination
+          .limit(count) // Limit results
+          .lean(); // Get plain JavaScript objects instead of Mongoose documents
 
-        // If still empty, send a fallback message
-        if (randomVideosFromDB.length === 0) {
-          return res
-            .status(404)
-            .json({ message: "No results found for your query." });
-        }
-
-        // Shuffle the videos from DB before returning (optional, as `sample` already randomizes)
-        const shuffledVideos = shuffleArray(randomVideosFromDB);
+        // Shuffle the videos from DB before returning
+        const shuffledVideos = shuffleArray(videosFromDB);
         return res.json(shuffledVideos);
       }
 
@@ -170,25 +163,24 @@ class XFreeScraperController {
     } catch (error) {
       console.error("search error:", error);
 
-      // Calculate skip in catch block
+      // Fallback to DB if API fails
       const count = Number(req.query.count) || 10;
       const page = Number(req.query.page) || 1;
       const skip = (page - 1) * count;
 
-      // Fallback to DB if API fails
+      // Use .find() to search the database
       const videosFromDB = await Video.find({
-        title: { $regex: req.params.query, $options: "i" },
+        title: { $regex: req.params.query, $options: "i" }, // Case-insensitive search
       })
-        .skip(skip)
-        .limit(count)
-        .lean();
+        .skip(skip) // Pagination
+        .limit(count) // Limit results
+        .lean(); // Get plain JavaScript objects
 
       // Shuffle the videos from DB before returning
       const shuffledVideos = shuffleArray(videosFromDB);
       return res.json(shuffledVideos);
     }
   };
-
   // 📄 GET DETAILS
   getDetails = async (req, res) => {
     try {
