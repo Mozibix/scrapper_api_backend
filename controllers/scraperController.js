@@ -106,13 +106,13 @@ class XFreeScraperController {
       const { query } = req.params;
       if (!query) return res.status(400).json({ message: "Query is required" });
 
-      const count = Number(req.query.count) || 10;
-      const page = Number(req.query.page) || 1;
-      const skip = (page - 1) * count;
+      const count = Number(req.query.count) || 10; // Number of items per page
+      const page = Number(req.query.page) || 1; // Current page
+      const skip = (page - 1) * count; // Calculate skip based on page number
 
-      console.log(`Searching for: "${query}", page ${page}`);
+      console.log(`Searching for: "${query}", page ${page}, skip ${skip}`);
 
-      // Try API first
+      // Try fetching from API first
       const apiUrl = `https://www.xfree.com/prbn2/?search=${query}&count=${count}&offset=${skip}`;
       const data = await fetchApi(apiUrl);
 
@@ -120,20 +120,27 @@ class XFreeScraperController {
       if (!Array.isArray(data) || data.length === 0) {
         console.log("API search returned empty, switching to DB...");
 
-        // Use .find() instead of aggregate to search the database
+        // Fallback to DB for the same offset and count
         const videosFromDB = await Video.find({
-          title: { $regex: query, $options: "i" }, // Case-insensitive search
+          title: { $regex: query, $options: "i" }, // Case-insensitive regex search
         })
-          .skip(skip) // Pagination
-          .limit(count) // Limit results
-          .lean(); // Get plain JavaScript objects instead of Mongoose documents
+          .skip(skip) // Skip based on page (offset)
+          .limit(count) // Limit the number of results
+          .lean(); // Use lean() for plain JS objects
+
+        // If no videos were found, return a fallback message
+        if (videosFromDB.length === 0) {
+          return res
+            .status(404)
+            .json({ message: "No results found for your query." });
+        }
 
         // Shuffle the videos from DB before returning
         const shuffledVideos = shuffleArray(videosFromDB);
         return res.json(shuffledVideos);
       }
 
-      // Process API results
+      // If API returns results, process them
       const videosFromAPI = data.map((item) => {
         const slug = slugifyTitle(item.title || "");
         return {
@@ -144,7 +151,7 @@ class XFreeScraperController {
         };
       });
 
-      // Save to DB (upsert)
+      // Save new videos to DB (upsert)
       if (videosFromAPI.length > 0) {
         await Video.bulkWrite(
           videosFromAPI.map((video) => ({
@@ -163,24 +170,25 @@ class XFreeScraperController {
     } catch (error) {
       console.error("search error:", error);
 
-      // Fallback to DB if API fails
-      const count = Number(req.query.count) || 10;
-      const page = Number(req.query.page) || 1;
-      const skip = (page - 1) * count;
+      // Fallback to DB in case of an error
+      const count = Number(req.query.count) || 10; // Number of items per page
+      const page = Number(req.query.page) || 1; // Current page
+      const skip = (page - 1) * count; // Calculate skip based on page number
 
-      // Use .find() to search the database
+      // Fetch videos from DB
       const videosFromDB = await Video.find({
-        title: { $regex: req.params.query, $options: "i" }, // Case-insensitive search
+        title: { $regex: req.params.query, $options: "i" }, // Case-insensitive regex search
       })
-        .skip(skip) // Pagination
-        .limit(count) // Limit results
-        .lean(); // Get plain JavaScript objects
+        .skip(skip) // Skip based on page (offset)
+        .limit(count) // Limit the number of results
+        .lean(); // Use lean() for plain JS objects
 
       // Shuffle the videos from DB before returning
       const shuffledVideos = shuffleArray(videosFromDB);
       return res.json(shuffledVideos);
     }
   };
+
   // 📄 GET DETAILS
   getDetails = async (req, res) => {
     try {
