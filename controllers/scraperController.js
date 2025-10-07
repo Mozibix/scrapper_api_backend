@@ -120,15 +120,24 @@ class XFreeScraperController {
       if (!Array.isArray(data) || data.length === 0) {
         console.log("API search returned empty, switching to DB...");
 
-        const videosFromDB = await Video.find({
-          title: { $regex: query, $options: "i" },
-        })
+        // Fetch random data from DB if no API data
+        const randomVideosFromDB = await Video.aggregate([
+          { $match: { title: { $regex: query, $options: "i" } } },
+          { $sample: { size: count } }, // Random selection of videos
+        ])
           .skip(skip)
           .limit(count)
           .lean();
 
-        // Shuffle the videos from DB before returning
-        const shuffledVideos = shuffleArray(videosFromDB);
+        // If still empty, send a fallback message
+        if (randomVideosFromDB.length === 0) {
+          return res
+            .status(404)
+            .json({ message: "No results found for your query." });
+        }
+
+        // Shuffle the videos from DB before returning (optional, as `sample` already randomizes)
+        const shuffledVideos = shuffleArray(randomVideosFromDB);
         return res.json(shuffledVideos);
       }
 
@@ -167,7 +176,7 @@ class XFreeScraperController {
       const page = Number(req.query.page) || 1;
       const skip = (page - 1) * count;
 
-      // Fallback to DB
+      // Fallback to DB if API fails
       const videosFromDB = await Video.find({
         title: { $regex: req.params.query, $options: "i" },
       })
