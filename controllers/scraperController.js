@@ -15,13 +15,13 @@ function slugifyTitle(title = "") {
 
 // Helper function to shuffle the array (Fisher-Yates shuffle)
 function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
+  const shuffled = [...array]; // Create a copy to avoid mutating original
+  for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return array;
+  return shuffled;
 }
-
 //
 class XFreeScraperController {
   BASE_URL = "https://www.xfree.com/prbn2";
