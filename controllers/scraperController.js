@@ -113,9 +113,11 @@ class XFreeScraperController {
       console.log(`Searching for: "${query}", page ${page}, skip ${skip}`);
 
       // Try fetching from API first
-      const apiUrl = `https://www.xfree.com/prbn2/?search=${query}&count=${count}&offset=${skip}`;
+      const apiUrl = `https://www.xfree.com/prbn2/?search=${query}&lgbt=1&count=${count}&offset=${skip}`;
+      // const apiUrl = `https://www.xfree.com/api/2/search?search=hotgirl&lgbt=1&limit=30`;
       const data = await fetchApi(apiUrl);
 
+      console.log(data[0]);
       // If API returns empty, switch to DB
       if (!Array.isArray(data) || data.length === 0) {
         console.log("API search returned empty, switching to DB...");
@@ -137,6 +139,7 @@ class XFreeScraperController {
 
         // Shuffle the videos from DB before returning
         const shuffledVideos = shuffleArray(videosFromDB);
+        console.log("Hey hey ", shuffledVideos[0]);
         return res.json(shuffledVideos);
       }
 
@@ -166,6 +169,8 @@ class XFreeScraperController {
 
       // Shuffle the videos from API before returning
       const shuffledVideos = shuffleArray(videosFromAPI);
+      console.log("Hey hey 2", shuffledVideos[0]);
+
       return res.json(shuffledVideos);
     } catch (error) {
       console.error("search error:", error);
