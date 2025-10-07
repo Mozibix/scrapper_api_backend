@@ -13,16 +13,6 @@ function slugifyTitle(title = "") {
     .replace(/-{2,}/g, "-");
 }
 
-// Helper function to shuffle the array (Fisher-Yates shuffle)
-function shuffleArray(array) {
-  const shuffled = [...array]; // Create a copy to avoid mutating original
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-//
 class XFreeScraperController {
   BASE_URL = "https://www.xfree.com/prbn2";
 
@@ -45,9 +35,7 @@ class XFreeScraperController {
 
         const videosFromDB = await Video.find().skip(skip).limit(count).lean();
 
-        // Shuffle the videos from DB before returning
-        const shuffledVideos = shuffleArray(videosFromDB);
-        return res.json(shuffledVideos);
+        return res.json(videosFromDB);
       }
 
       // Process API data
@@ -87,11 +75,12 @@ class XFreeScraperController {
       console.error("getTrending error:", error);
 
       // Fallback to DB on any error
-      const videosFromDB = await Video.find().skip(skip).limit(count).lean();
+      const videosFromDB = await Video.find()
+        .skip((req.query.page - 1) * req.query.count)
+        .limit(req.query.count)
+        .lean();
 
-      // Shuffle the videos from DB before returning
-      const shuffledVideos = shuffleArray(videosFromDB);
-      return res.json(shuffledVideos);
+      return res.json(videosFromDB);
     }
   };
 
@@ -122,9 +111,7 @@ class XFreeScraperController {
           .limit(count)
           .lean();
 
-        // Shuffle the videos from DB before returning
-        const shuffledVideos = shuffleArray(videosFromDB);
-        return res.json(shuffledVideos);
+        return res.json(videosFromDB);
       }
 
       // Process API results
@@ -151,9 +138,7 @@ class XFreeScraperController {
         );
       }
 
-      // Shuffle the videos from API before returning
-      const shuffledVideos = shuffleArray(videosFromAPI);
-      return res.json(shuffledVideos);
+      return res.json(videosFromAPI);
     } catch (error) {
       console.error("search error:", error);
 
@@ -161,14 +146,228 @@ class XFreeScraperController {
       const videosFromDB = await Video.find({
         title: { $regex: req.params.query, $options: "i" },
       })
-        .skip(skip)
-        .limit(count)
+        .skip((req.query.page - 1) * req.query.count)
+        .limit(req.query.count)
         .lean();
 
-      // Shuffle the videos from DB before returning
-      const shuffledVideos = shuffleArray(videosFromDB);
-      return res.json(shuffledVideos);
+      return res.json(videosFromDB);
     }
+  };
+
+  // 📄 GET DETAILS
+  getDetails = async (req, res) => {
+    try {
+      const { id } = req.body;
+      if (!id) {
+        return res.status(400).json({ message: "id is required in body" });
+      }
+
+      console.log(`Fetching details for: ${id}`);
+
+      // Try API first
+      const data = await fetchApi(`${this.BASE_URL}?count=60`);
+
+      // If API returns empty, switch to DB
+      if (!Array.isArray(data) || data.length === 0) {
+        console.log("API returned empty, fetching from DB...");
+
+        let videoFromDB = await Video.findOne({ id }).lean();
+
+        if (!videoFromDB) {
+          videoFromDB = await Video.findOne({
+            id: { $regex: id, $options: "i" },
+          }).lean();
+        }
+
+        if (!videoFromDB) {
+          return res.status(404).json({
+            id,
+            title: "Not Found",
+            poster: "",
+            suggestedVideo: [],
+            seasons: [
+              {
+                title: "Video",
+                poster: "",
+                episodes: [{ id: "", title: "Not Found" }],
+              },
+            ],
+            type: "movie",
+          });
+        }
+
+        const suggestedVideos = await Video.find({
+          id: { $ne: videoFromDB.id },
+        })
+          .limit(20)
+          .lean();
+
+        return res.json({
+          id: videoFromDB.id,
+          title: videoFromDB.title,
+          poster: videoFromDB.poster,
+          suggestedVideo: suggestedVideos,
+          seasons: [
+            {
+              title: "Video",
+              poster: videoFromDB.poster,
+              episodes: [
+                {
+                  id: videoFromDB.id,
+                  title: videoFromDB.title,
+                  video: videoFromDB.video || "",
+                },
+              ],
+            },
+          ],
+          type: "movie",
+        });
+      }
+
+      // Process API results
+      const results = data.map((item) => ({
+        id: slugifyTitle(item.title || ""),
+        title: item.title || "",
+        poster: item.poster || "",
+        video: item.video || "",
+      }));
+
+      let videoFromAPI = results.find(
+        (item) => item.id.toLowerCase() === id.toLowerCase()
+      );
+
+      if (!videoFromAPI) {
+        videoFromAPI = results.find((item) =>
+          item.id.toLowerCase().includes(id.toLowerCase())
+        );
+      }
+
+      // If not found in API, try DB
+      if (!videoFromAPI) {
+        let videoFromDB = await Video.findOne({ id }).lean();
+
+        if (!videoFromDB) {
+          return res.status(404).json({
+            id,
+            title: "Not Found",
+            poster: "",
+            suggestedVideo: [],
+            seasons: [
+              {
+                title: "Video",
+                poster: "",
+                episodes: [{ id: "", title: "Not Found" }],
+              },
+            ],
+            type: "movie",
+          });
+        }
+
+        const suggestedVideos = await Video.find({
+          id: { $ne: videoFromDB.id },
+        })
+          .limit(20)
+          .lean();
+
+        return res.json({
+          id: videoFromDB.id,
+          title: videoFromDB.title,
+          poster: videoFromDB.poster,
+          suggestedVideo: suggestedVideos,
+          seasons: [
+            {
+              title: "Video",
+              poster: videoFromDB.poster,
+              episodes: [
+                {
+                  id: videoFromDB.id,
+                  title: videoFromDB.title,
+                  video: videoFromDB.video || "",
+                },
+              ],
+            },
+          ],
+          type: "movie",
+        });
+      }
+
+      // Save to DB
+      const existsInDB = await Video.findOne({ id: videoFromAPI.id });
+      if (!existsInDB) {
+        await Video.create({
+          id: videoFromAPI.id,
+          title: videoFromAPI.title,
+          poster: videoFromAPI.poster,
+          video: videoFromAPI.video,
+        });
+      }
+
+      const suggestedVideos = await Video.find({ id: { $ne: videoFromAPI.id } })
+        .limit(20)
+        .lean();
+
+      return res.json({
+        id: videoFromAPI.id,
+        title: videoFromAPI.title,
+        poster: videoFromAPI.poster,
+        suggestedVideo: suggestedVideos,
+        seasons: [
+          {
+            title: "Video",
+            poster: videoFromAPI.poster,
+            episodes: [
+              {
+                id: videoFromAPI.id,
+                title: videoFromAPI.title,
+                video: videoFromAPI.video || "",
+              },
+            ],
+          },
+        ],
+        type: "movie",
+      });
+    } catch (error) {
+      console.error("getDetails error:", error);
+
+      // Fallback to DB
+      const videoFromDB = await Video.findOne({ id: req.body.id }).lean();
+
+      if (!videoFromDB) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      const suggestedVideos = await Video.find({ id: { $ne: videoFromDB.id } })
+        .limit(20)
+        .lean();
+
+      return res.json({
+        id: videoFromDB.id,
+        title: videoFromDB.title,
+        poster: videoFromDB.poster,
+        suggestedVideo: suggestedVideos,
+        seasons: [
+          {
+            title: "Video",
+            poster: videoFromDB.poster,
+            episodes: [
+              {
+                id: videoFromDB.id,
+                title: videoFromDB.title,
+                video: videoFromDB.video || "",
+              },
+            ],
+          },
+        ],
+        type: "movie",
+      });
+    }
+  };
+
+  // 🗂️ CATEGORIES
+  getCategories = async (req, res) => {
+    return res.json({
+      categories: [],
+    });
   };
 
   // 🎭 CATEGORY
@@ -194,9 +393,7 @@ class XFreeScraperController {
           .limit(50)
           .lean();
 
-        // Shuffle the videos from DB before returning
-        const shuffledVideos = shuffleArray(videosFromDB);
-        return res.json(shuffledVideos);
+        return res.json(videosFromDB);
       }
 
       // Process API results
@@ -222,9 +419,7 @@ class XFreeScraperController {
         })
       );
 
-      // Shuffle the videos from API before returning
-      const shuffledVideos = shuffleArray(videosFromAPI);
-      return res.json(shuffledVideos);
+      return res.json(videosFromAPI);
     } catch (error) {
       console.error("getCategory error:", error);
 
@@ -235,9 +430,7 @@ class XFreeScraperController {
         .limit(50)
         .lean();
 
-      // Shuffle the videos from DB before returning
-      const shuffledVideos = shuffleArray(videosFromDB);
-      return res.json(shuffledVideos);
+      return res.json(videosFromDB);
     }
   };
 
