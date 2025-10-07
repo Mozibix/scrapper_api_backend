@@ -124,10 +124,9 @@ class XFreeScraperController {
         const randomVideosFromDB = await Video.aggregate([
           { $match: { title: { $regex: query, $options: "i" } } },
           { $sample: { size: count } }, // Random selection of videos
-        ])
-          .skip(skip)
-          .limit(count)
-          .lean();
+          { $skip: skip }, // Pagination (skip)
+          { $limit: count }, // Pagination (limit)
+        ]).lean(); // Use lean() to get plain JavaScript objects
 
         // If still empty, send a fallback message
         if (randomVideosFromDB.length === 0) {
