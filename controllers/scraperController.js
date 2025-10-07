@@ -13,6 +13,16 @@ function slugifyTitle(title = "") {
     .replace(/-{2,}/g, "-");
 }
 
+// Helper function to shuffle the array (Fisher-Yates shuffle)
+function shuffleArray(array) {
+  const shuffled = [...array]; // Create a copy to avoid mutating original
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 class XFreeScraperController {
   BASE_URL = "https://www.xfree.com/prbn2";
 
@@ -35,7 +45,9 @@ class XFreeScraperController {
 
         const videosFromDB = await Video.find().skip(skip).limit(count).lean();
 
-        return res.json(videosFromDB);
+        // Shuffle the videos from DB before returning
+        const shuffledVideos = shuffleArray(videosFromDB);
+        return res.json(shuffledVideos);
       }
 
       // Process API data
@@ -74,13 +86,17 @@ class XFreeScraperController {
     } catch (error) {
       console.error("getTrending error:", error);
 
-      // Fallback to DB on any error
-      const videosFromDB = await Video.find()
-        .skip((req.query.page - 1) * req.query.count)
-        .limit(req.query.count)
-        .lean();
+      // Calculate skip in catch block
+      const page = Math.max(Number(req.query.page) || 1, 1);
+      const count = Math.max(Number(req.query.count) || 30, 1);
+      const skip = (page - 1) * count;
 
-      return res.json(videosFromDB);
+      // Fallback to DB on any error
+      const videosFromDB = await Video.find().skip(skip).limit(count).lean();
+
+      // Shuffle the videos from DB before returning
+      const shuffledVideos = shuffleArray(videosFromDB);
+      return res.json(shuffledVideos);
     }
   };
 
@@ -111,7 +127,9 @@ class XFreeScraperController {
           .limit(count)
           .lean();
 
-        return res.json(videosFromDB);
+        // Shuffle the videos from DB before returning
+        const shuffledVideos = shuffleArray(videosFromDB);
+        return res.json(shuffledVideos);
       }
 
       // Process API results
@@ -138,19 +156,28 @@ class XFreeScraperController {
         );
       }
 
-      return res.json(videosFromAPI);
+      // Shuffle the videos from API before returning
+      const shuffledVideos = shuffleArray(videosFromAPI);
+      return res.json(shuffledVideos);
     } catch (error) {
       console.error("search error:", error);
+
+      // Calculate skip in catch block
+      const count = Number(req.query.count) || 10;
+      const page = Number(req.query.page) || 1;
+      const skip = (page - 1) * count;
 
       // Fallback to DB
       const videosFromDB = await Video.find({
         title: { $regex: req.params.query, $options: "i" },
       })
-        .skip((req.query.page - 1) * req.query.count)
-        .limit(req.query.count)
+        .skip(skip)
+        .limit(count)
         .lean();
 
-      return res.json(videosFromDB);
+      // Shuffle the videos from DB before returning
+      const shuffledVideos = shuffleArray(videosFromDB);
+      return res.json(shuffledVideos);
     }
   };
 
@@ -199,14 +226,17 @@ class XFreeScraperController {
         const suggestedVideos = await Video.find({
           id: { $ne: videoFromDB.id },
         })
-          .limit(20)
+          .limit(200)
           .lean();
+
+        // Shuffle suggested videos
+        const shuffledSuggested = shuffleArray(suggestedVideos);
 
         return res.json({
           id: videoFromDB.id,
           title: videoFromDB.title,
           poster: videoFromDB.poster,
-          suggestedVideo: suggestedVideos,
+          suggestedVideo: shuffledSuggested,
           seasons: [
             {
               title: "Video",
@@ -266,14 +296,17 @@ class XFreeScraperController {
         const suggestedVideos = await Video.find({
           id: { $ne: videoFromDB.id },
         })
-          .limit(20)
+          .limit(200)
           .lean();
+
+        // Shuffle suggested videos
+        const shuffledSuggested = shuffleArray(suggestedVideos);
 
         return res.json({
           id: videoFromDB.id,
           title: videoFromDB.title,
           poster: videoFromDB.poster,
-          suggestedVideo: suggestedVideos,
+          suggestedVideo: shuffledSuggested,
           seasons: [
             {
               title: "Video",
@@ -303,14 +336,17 @@ class XFreeScraperController {
       }
 
       const suggestedVideos = await Video.find({ id: { $ne: videoFromAPI.id } })
-        .limit(20)
+        .limit(200)
         .lean();
+
+      // Shuffle suggested videos
+      const shuffledSuggested = shuffleArray(suggestedVideos);
 
       return res.json({
         id: videoFromAPI.id,
         title: videoFromAPI.title,
         poster: videoFromAPI.poster,
-        suggestedVideo: suggestedVideos,
+        suggestedVideo: shuffledSuggested,
         seasons: [
           {
             title: "Video",
@@ -337,14 +373,17 @@ class XFreeScraperController {
       }
 
       const suggestedVideos = await Video.find({ id: { $ne: videoFromDB.id } })
-        .limit(20)
+        .limit(200)
         .lean();
+
+      // Shuffle suggested videos
+      const shuffledSuggested = shuffleArray(suggestedVideos);
 
       return res.json({
         id: videoFromDB.id,
         title: videoFromDB.title,
         poster: videoFromDB.poster,
-        suggestedVideo: suggestedVideos,
+        suggestedVideo: shuffledSuggested,
         seasons: [
           {
             title: "Video",
@@ -393,7 +432,9 @@ class XFreeScraperController {
           .limit(50)
           .lean();
 
-        return res.json(videosFromDB);
+        // Shuffle the videos from DB before returning
+        const shuffledVideos = shuffleArray(videosFromDB);
+        return res.json(shuffledVideos);
       }
 
       // Process API results
@@ -419,7 +460,9 @@ class XFreeScraperController {
         })
       );
 
-      return res.json(videosFromAPI);
+      // Shuffle the videos from API before returning
+      const shuffledVideos = shuffleArray(videosFromAPI);
+      return res.json(shuffledVideos);
     } catch (error) {
       console.error("getCategory error:", error);
 
@@ -430,7 +473,9 @@ class XFreeScraperController {
         .limit(50)
         .lean();
 
-      return res.json(videosFromDB);
+      // Shuffle the videos from DB before returning
+      const shuffledVideos = shuffleArray(videosFromDB);
+      return res.json(shuffledVideos);
     }
   };
 
