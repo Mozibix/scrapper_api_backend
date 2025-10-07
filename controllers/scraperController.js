@@ -22,6 +22,7 @@ function shuffleArray(array) {
   return array;
 }
 
+//
 class XFreeScraperController {
   BASE_URL = "https://www.xfree.com/prbn2";
 
